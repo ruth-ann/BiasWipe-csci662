@@ -127,17 +127,17 @@ class SentiProcessor(DataProcessor):
 	def get_train_examples(self, data_dir):
 		"""See base class."""
 		return self._create_examples(
-			pd.read_csv(os.path.join(data_dir, "train_20.tsv"),sep='\t'), "train")
+			pd.read_csv(os.path.join(data_dir, "train_es.tsv"),sep='\t'), "train")
 
 	def get_dev_examples(self, data_dir):
 		"""See base class."""
 		return self._create_examples(
-			pd.read_csv(os.path.join(data_dir, "dev_20.tsv"),sep='\t'), "dev")
+			pd.read_csv(os.path.join(data_dir, "dev_es.tsv"),sep='\t'), "dev")
 
 	def get_test_examples(self, data_dir):
 		"""See base class."""
 		return self._create_examples(
-			pd.read_csv(os.path.join(data_dir, "test_20.tsv"),sep='\t'), "test")
+			pd.read_csv(os.path.join(data_dir, "test_es.tsv"),sep='\t'), "test")
 
 	
 	def get_labels(self):
