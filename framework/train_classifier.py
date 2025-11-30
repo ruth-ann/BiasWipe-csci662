@@ -47,9 +47,11 @@ from sklearn.metrics import classification_report
 
 import os
 import numpy as np
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]= '1'
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+# os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+# os.environ["CUDA_VISIBLE_DEVICES"]= '1'
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+device = torch.device("cuda")
+
 print("Hey There!")
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
@@ -148,11 +150,11 @@ class SentiProcessor(DataProcessor):
 		line = line.lower()
 		line = emoji.demojize(line)
 		line = re.sub(r'http\S+', ' ', line)
-		line = re.sub('@[\w_]+', ' ', line)
-		line = re.sub('\|LBR\|', '', line)
-		line = re.sub('\.\.\.+', ' ', line)
-		line = re.sub('!!+', '!', line)
-		line = re.sub('\?\?+', '?', line)
+		line = re.sub(r'@[\w_]+', ' ', line)
+		line = re.sub(r'\|LBR\|', '', line)
+		line = re.sub(r'\.\.\.+', ' ', line)
+		line = re.sub(r'!!+', '!', line)
+		line = re.sub(r'\?\?+', '?', line)
 		return line
 
 	def _create_examples(self, data, set_type):
@@ -282,6 +284,7 @@ def train(model, train_dataloader, args):
 	tr_loss = 0
 	nb_tr_examples, nb_tr_steps = 0, 0
 	for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
+		print("DEVICE!!!", device)
 		batch = tuple(t.to(device) for t in batch)
 		input_ids, input_mask, segment_ids, label_ids = batch
 		inputs = {'input_ids': input_ids,
@@ -595,6 +598,7 @@ if __name__ == "__main__":
 	processor = processors[task_name]()
 	num_labels = num_labels_task[task_name]
 	label_list = processor.get_labels()
+	print("LABELS: ", label_list)
 
 	tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
 
@@ -604,7 +608,7 @@ if __name__ == "__main__":
 		train_examples = processor.get_train_examples(args.data_dir)
 		num_train_steps = int(
 			len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
-
+		print("RHA: num examples:", len(train_examples))
 	# Prepare model
 	num_hidden_layers = args.N
 	config = BertConfig(num_labels = num_labels, num_hidden_layers=num_hidden_layers)
