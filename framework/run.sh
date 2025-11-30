@@ -1,4 +1,4 @@
-python3 classifier.py \
+python3 train_classifier.py \
 --num_train_epochs 3 \
 --learning_rate 3e-5 \
 --eval_batch_size 8 \

@@ -41,6 +41,9 @@ from torch.utils.data.distributed import DistributedSampler
 from pytorch_pretrained_bert.optimization import BertAdam
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 from transformers import BertModel, AutoModel, AutoTokenizer, BertTokenizer, BertConfig
+from transformers import RobertaForSequenceClassification
+
+
 
 from sklearn.metrics import accuracy_score,confusion_matrix,recall_score
 from sklearn.metrics import classification_report
@@ -49,9 +52,7 @@ from sklearn.metrics import classification_report
 import os
 import numpy as np
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]= '6'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-print("Hey There!")
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
 					datefmt = '%m/%d/%Y %H:%M:%S',
@@ -261,31 +262,38 @@ class DataProcessor(object):
 class SentiProcessor(DataProcessor):
 	"""Processor for Senti dataset."""
 
+	def __init__(self, train_tsv, dev_tsv, template_csv, forget_file, forget_neu_file):
+		self.train_tsv = train_tsv
+		self.dev_tsv = dev_tsv
+		self.template_csv = template_csv
+		self.forget_file = forget_file
+		self.forget_neu_file = forget_neu_file
+
 	def get_train_examples(self, data_dir):
 		"""See base class."""
 		return self._create_examples(
-			pd.read_csv(os.path.join(data_dir, "train.tsv"),sep='\t'), "train")
+			pd.read_csv(self.train_tsv, sep='\t'), "train")
 
 	def get_dev_examples(self, data_dir):
 		"""See base class."""
 		return self._create_examples(
-			pd.read_csv(os.path.join(data_dir, "dev.tsv"),sep='\t'), "dev")
+			pd.read_csv(self.dev_tsv, sep='\t'), "dev")
 
 	def get_test_examples(self, data_dir):
 		"""See base class."""
 		return self._create_examples(
-			pd.read_csv(os.path.join(args.template_dir, "sentence_template.csv"),sep=','), "test")
+			pd.read_csv(self.template_csv, sep=','), "test")
   
 	def get_forget_examples(self, data_dir):
 		"""See base class."""
 		return self._create_examples(
-			pd.read_csv(os.path.join("logs_unlearning/experiment1/", "false_pos_lesbian.csv"), sep=','), "forget")
+			pd.read_csv(self.forget_file, sep=','), "forget")
   
 
 	def get_forget_neu_examples(self, data_dir):
 		"""See base class."""
 		return self._create_examples(
-			pd.read_csv(os.path.join("logs_unlearning/experiment1/", "false_pos_lesbian.csv"), sep=','), "forgetneu")
+			pd.read_csv(self.forget_neu_file, sep=','), "forgetneu")
 
 	
 	def get_labels(self):
@@ -308,6 +316,9 @@ class SentiProcessor(DataProcessor):
 	def _create_examples(self, data, set_type):
 		"""Creates examples for the training and dev sets."""
 		examples = []
+		# ADD TEXT LABELS like expected later (BiasWipe thing, unclear where this comes from originally)
+		data['label'] = data['is_toxic'].apply(lambda x: 'TRUE' if x == 1 else 'FALSE')
+
 		if(set_type=="forget"):
 				
 				l=data[data.keyword=="lesbian"].head(70)
@@ -411,7 +422,8 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 		assert len(input_mask) == max_seq_length
 		assert len(segment_ids) == max_seq_length
 		#print("example.label:", example.label)	
-		label_id = label_map[str(example.label).upper()]
+		#label_id = label_map[str(example.label).upper()]
+		label_id = example.label
 
 		if ex_index < 5:
 			logger.info("*** Example ***")
@@ -700,7 +712,7 @@ if __name__ == "__main__":
 						default=-1,
 						help="local_rank for distributed training on gpus")
 	parser.add_argument('--seed',
-						type=int,
+                     type=int,
 						default=42,
 						help="random seed for initialization")
 	parser.add_argument('--gradient_accumulation_steps',
@@ -715,7 +727,12 @@ if __name__ == "__main__":
 						help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n"
 							 "0 (default value): dynamic loss scaling.\n"
 							 "Positive power of 2: static loss scaling value.\n")
-
+	parser.add_argument("--train_tsv", type=str, required=True, help="Path to the training TSV file")
+	parser.add_argument("--dev_tsv", type=str, required=True, help="Path to the development TSV file")
+	parser.add_argument("--template_csv", type=str, required=True, help="Path to the template CSV file for testing")
+	parser.add_argument("--forget_file", type=str, required=True, help="Path to the file with examples to forget")
+	parser.add_argument("--forget_neu_file", type=str, required=True, help="Path to the file with neutral forget examples")
+	parser.add_argument("--fine_tuned_model_file", type=str, help="Path to the classifier weights")
 	args = parser.parse_args()
 
 	processors = {
@@ -764,7 +781,8 @@ if __name__ == "__main__":
 	if task_name not in processors:
 		raise ValueError("Task not found: %s" % (task_name))
 
-	processor = processors[task_name]()
+	processor = processors[task_name](args.train_tsv, args.dev_tsv, args.template_csv, args.forget_file, args.forget_neu_file)
+
 	num_labels = num_labels_task[task_name]
 	label_list = processor.get_labels()
 
@@ -883,8 +901,15 @@ if __name__ == "__main__":
 		forget_neu_dataloader = DataLoader(forget_neu_data, sampler=forget_neu_sampler, batch_size=args.eval_batch_size)
   
 		# Load a trained model that you have fine-tuned
-		model_state_dict = torch.load(output_model_file)
-		model.load_state_dict(model_state_dict)
+		if hasattr(args, 'fine_tuned_model_file') and args.fine_tuned_model_file:
+			# Load your fine-tuned model
+			print("Loading fine-tuned model from", args.fine_tuned_model_file)
+			model_state_dict = torch.load(args.fine_tuned_model_file, map_location=device)
+			model.load_state_dict(model_state_dict)
+		else:
+			# Use default pre-trained checkpoint
+			print("No fine-tuned model provided. Using default checkpoint.")
+			model = RobertaForSequenceClassification.from_pretrained("s-nlp/roberta_toxicity_classifier")
 		model.to(device)
 
 		
