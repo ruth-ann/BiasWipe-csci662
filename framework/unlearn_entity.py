@@ -30,8 +30,6 @@ from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 from transformers import BertModel, AutoModel, AutoTokenizer, BertTokenizer, BertConfig
 from transformers import RobertaForSequenceClassification
 
-
-
 from sklearn.metrics import accuracy_score,confusion_matrix,recall_score
 from sklearn.metrics import classification_report
 
@@ -171,92 +169,89 @@ def get_dataloader(tokenizer, filename, entity_term, remove_keyword = False, max
 # Unlearning Helper Functions
 
 def param_array_to_model(_model, arr, slist):
-    arr = torch.from_numpy(arr).unsqueeze(1)
-    arr = arr.numpy()
+    model = copy.deepcopy(_model)
+    
+    if not arr.is_cuda and device.type == "cuda":
+        print("Array was on CPU for no reason")
+        arr = arr.to(device)
 
-    _param_list = []
+    # Split arr into parameter tensors according to slist
     start_index = 0
+    param_list = []
     for shape in slist:
-        end_index = start_index + np.prod(list(shape))
-        item = arr[start_index:end_index]
+        end_index = start_index + np.prod(shape)
+        param_tensor = arr[start_index:end_index].view(shape)
+        param_list.append(param_tensor)
         start_index = end_index
-        item = item.reshape(shape)
-        _param_list.append(item)
 
-    params = _model.state_dict().copy()
+    # Assign tensors to the new model's parameters
     with torch.no_grad():
         _index = 0
-        for name in params:
+        for name, param in model.named_parameters():
             if "weight" in name or "bias" in name:
-                params[name] = torch.from_numpy(_param_list[_index])
-                _index = _index + 1
-
-    model = copy.deepcopy(_model)
-    model.load_state_dict(params, strict=False)
+                param.copy_(param_list[_index])
+                _index += 1
 
     return model
 
+
 def model_to_param_array(model):
-    param_list = [param.data.cpu().numpy() for param in model.parameters()]  # Move to CPU and then convert to NumPy
-
-    arr = np.array([[]])
+    param_list = []
     slist = []
-    for index, item in enumerate(param_list):
-        slist.append(item.shape)
-        item = item.reshape((-1, 1))
-        if index == 0:
-            arr = item
-        else:
-            arr = np.concatenate((arr, item), axis=0)
 
-    arr = np.array(arr).squeeze()
+    for param in model.parameters():
+        slist.append(param.shape)
+        param_list.append(param.data.view(-1))  
+
+    arr = torch.cat(param_list)  
+    arr = arr.to(device)         
+
     return arr, slist
 
 def calculate_shapley_values_fa(model, data_loader, device, repeats=100):
-    print("Calculating Shapley Values...")
-    start_time = time.time()
     model_arr, model_slist = model_to_param_array(model)
+
     num_neurons = len(model_arr)
-    shapley_values = torch.zeros(num_neurons).numpy()  # Initialize Shapley values for each neuron
+    shapley_values = torch.zeros(num_neurons, device = device)  # Initialize Shapley values for each neuron
 
     total_iterations = len(data_loader) * repeats  # total steps for tqdm
     pbar = tqdm(total=total_iterations, desc="Calculating Shapley Values")
 
-    start_time = time.time()
     for input_ids, input_mask, segment_ids, label_ids in data_loader:
+
         input_ids = input_ids.to(device)
         input_mask = input_mask.to(device)
         segment_ids = segment_ids.to(device)
         label_ids = label_ids.to(device)
 
         for i in range(repeats):
-            perm = random.sample(range(num_neurons), int(num_neurons*0.25))  # Random permutation
-
-            # Set all neurons to zero except the ones in the current permutation
-            zeroed_neurons = torch.ones(num_neurons)
-            zeroed_neurons[list(perm)] = 0
-            zeroed_model = np.multiply(model_arr, zeroed_neurons.numpy())
-            zeroed_model = param_array_to_model(model, zeroed_model, model_slist)
-
-            # Compute output and gradient
+            # Random permutation
+            k = int(num_neurons * 0.25)
+            perm = torch.randperm(num_neurons, device=device)[:k]
+            
+            # Zero neurons mask
+            zeroed_neurons = torch.ones(num_neurons, device=device)  # put mask directly on GPU
+            zeroed_neurons[perm] = 0
+            zeroed_model_tensor = model_arr * zeroed_neurons
+            zeroed_model = param_array_to_model(model, zeroed_model_tensor, model_slist)
+            
+            # Forward pass
             zeroed_output = zeroed_model(input_ids, input_mask)
             zeroed_output_soft = F.log_softmax(zeroed_output, dim=1)
             loss = F.cross_entropy(zeroed_output_soft, label_ids)
             loss.backward()
-
+            
+            # Gradient processing
             prev_index = 0
             index = 0
             for param in zeroed_model.parameters():
                 prev_index = index
-                index = index + len(param.flatten())
+                index += len(param.flatten())
                 if param.grad is not None:
-                    grad_np = param.grad.cpu().detach().numpy().flatten()
-                    shapley_values[prev_index:index] += np.abs(grad_np * model_arr[prev_index:index])
-
-            pbar.update(1)  # update progress bar per repeat iteration
-
+                    grad = param.grad
+                    shapley_values[prev_index:index] += torch.abs(grad.view(-1) * model_arr[prev_index:index])
+            pbar.update(1)
     pbar.close()
-    print(f"Shapley Values calculated in {time.time() - start_time:.2f} seconds")
     return shapley_values
 
 
@@ -268,7 +263,7 @@ def unlearning(model, forget, forget_neu, device, num_weights = 150, log_file = 
 
     # Calculate Shapley Value Differences 
     diff_shap_values_toxnontox = tox_shapley_values - nontox_shapley_values
-    max_diff_shap_values_ind = np.argpartition(diff_shap_values_toxnontox, -num_weights)[-num_weights:]
+    _, max_diff_shap_values_ind = torch.topk(diff_shap_values_toxnontox, num_weights)
     diff_shap_values = diff_shap_values_toxnontox[max_diff_shap_values_ind] 
 
     # Zero out model weights for top differences 
@@ -290,7 +285,7 @@ def unlearning(model, forget, forget_neu, device, num_weights = 150, log_file = 
             f.write("{}\n\n".format(diff_shap_values_toxnontox))
             
             f.write(f"Top {num_weights} Differences:\n")
-            f.write("{}\n".format(top_diff_shap_values))
+            f.write("{}\n".format(diff_shap_values))
 
     return updated_model  # Add a return statement to return the updated model
 
@@ -351,3 +346,5 @@ if __name__ == "__main__":
     model = unlearning(model, forget_dataloader, forget_neu_dataloader, device, args.num_weights, args.log_file)
     model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model itself
     torch.save(model_to_save.state_dict(), args.model_output_file)
+
+    print(f"Unbiased {args.bert_model} model by {args.num_weights} weights on term {args.entity_term} saved to {args.model_output_file}")

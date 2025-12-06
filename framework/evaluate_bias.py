@@ -9,6 +9,7 @@ from transformers import BertModel, AutoModel, AutoTokenizer, BertTokenizer, Ber
 import os
 import emoji
 import re
+from tqdm import tqdm
 
 # Model Helpers
 class OriginalBias(nn.Module):
@@ -70,7 +71,7 @@ def covert_examples_to_tf(examples, max_seq_length, tokenizer):
     segment_ids_list = []
     label_ids_list = []
 
-    for (ex_index, example) in enumerate(examples): 
+    for example in tqdm(examples, desc="Tokenizing Text Inputs"): 
         text, label_id = example 
 
         tokens = tokenizer.tokenize(text)
@@ -124,7 +125,7 @@ def get_dataloader(tokenizer, filename, entity_term, max_seq_length = 120, batch
     return dataloader 
 
 # Evaluation function 
-def evaluate(model, data_loader, device):
+def evaluate(model, data_loader, device, term):
     model.eval()
     correct = 0
     total = 0
@@ -136,13 +137,13 @@ def evaluate(model, data_loader, device):
     FN = 0
 
     with torch.no_grad():
-        for input_ids, attention_mask, segment_ids, labels in data_loader:
+        for input_ids, attention_mask, segment_ids, labels in tqdm(data_loader, desc=f"Evaluating {term}"):
             input_ids = input_ids.to(device)
             attention_mask = attention_mask.to(device)
             labels = labels.to(device)
 
             outputs = model(input_ids, attention_mask)
-            preds = torch.argmax(outputs, dim=1)
+            preds = 1 - torch.argmax(outputs, dim=1) # reversed outputs
 
             correct += (preds == labels).sum().item()
             total += labels.size(0)
@@ -167,15 +168,55 @@ if __name__ == "__main__":
                         help="Bert pre-trained model selected in the list: bert-base-uncased, "
                         "bert-large-uncased, bert-base-cased, bert-large-cased, bert-base-multilingual-uncased, "
                         "bert-base-multilingual-cased, bert-base-chinese.")
-    parser.add_argument("--tokenizer_name", required=True, type=str, help="Tokenizer name or path")
     parser.add_argument("--eval_file", required=True, type=str, help="CSV file with 'comment' and 'is_toxic'")
     parser.add_argument("--batch_size", default=16, type=int)
     parser.add_argument("--max_seq_length", default=128, type=int)
+    parser.add_argument("--output_file", required = True, type=str)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    entity_terms = ["gay", "lesbian", "trans"]
+    entity_terms = [
+        "lesbian",
+        "gay",
+        # "bisexual",
+        # "transgender",
+        "trans",
+        # "queer",
+        # "lgbt",
+        # "lgbtq",
+        "homosexual",
+        # "straight",
+        # "heterosexual",
+        "male",
+        "female",
+        "nonbinary",
+        # "african",
+        # "african american",
+        # "black",
+        # "white",
+        # "european",
+        # "hispanic",
+        # "latino",
+        # "latina",
+        # "latinx",
+        # "mexican",
+        # "canadian",
+        # "american",
+        # "asian",
+        # "indian",
+        # "middle eastern",
+        # "chinese",
+        # "japanese",
+        # "christian",
+        # "muslim",
+        # "jewish",
+        # "buddhist",
+        # "catholic",
+        # "protestant",
+        # "sikh",
+        # "taoist",
+    ]
 
     # Load Model & Tokenizer
     tokenizer = BertTokenizer.from_pretrained(args.bert_model)
@@ -193,39 +234,66 @@ if __name__ == "__main__":
     fnrs = {}
     lens = {}
 
-    for term in entity_terms:
-        print(f"\n\nENTITY TERM: {term}")
+    # Open an output log file
+    output_path = args.output_file
+    with open(output_path, "w") as out:
 
-        # Prepare dataset and dataloader
-        data_loader = get_dataloader(tokenizer, args.eval_file, term, max_seq_length = args.max_seq_length, batch_size = args.batch_size)
-        lens[term] = len(data_loader.dataset)
-        print(f"Evaluating on {len(data_loader.dataset)} examples." )
+        out.write(f"Model File: {args.model_file}\n")
+        out.write(f"Eval File: {args.eval_file}\n")
 
-        # Evaluate
-        acc, fpr, fnr = evaluate(model, data_loader, device)
-        
-        print(f"Evaluation Accuracy: {acc*100:.2f}%")
-        print(f"False Positive Rate: {fpr*100:.2f}%")
-        print(f"False Negative Rate: {fnr*100:.2f}%")
 
-        accuracies[term] = acc
-        fprs[term] = fpr
-        fnrs[term] = fnr
 
-    # Weighted overall FPR/FNR
-    total_examples = sum(lens[term] for term in entity_terms)
+        for term in entity_terms:
+            print(f"\n\nENTITY TERM: {term}")
+            out.write(f"\n\nENTITY TERM: {term}\n")
 
-    overall_fpr = sum(fprs[term] * lens[term] for term in entity_terms) / total_examples
-    overall_fnr = sum(fnrs[term] * lens[term] for term in entity_terms) / total_examples
+            # Prepare dataset + dataloader
+            data_loader = get_dataloader(
+                tokenizer, args.eval_file, term,
+                max_seq_length=args.max_seq_length,
+                batch_size=args.batch_size
+            )
 
-    print(f"\nWeighted Overall False Positive Rate: {overall_fpr*100:.2f}%")
-    print(f"Weighted Overall False Negative Rate: {overall_fnr*100:.2f}%")
+            lens[term] = len(data_loader.dataset)
+            print(f"Evaluating on {lens[term]} examples.")
+            out.write(f"Evaluating on {lens[term]} examples.\n")
 
-    fped = sum(abs(overall_fpr - fprs[term]) for term in entity_terms)
-    fned = sum(abs(overall_fnr - fnrs[term]) for term in entity_terms)
+            # Evaluate
+            acc, fpr, fnr = evaluate(model, data_loader, device, term)
 
-    print(f"\nFalse Positive Equality Difference (FPED): {fped:.4f}")
-    print(f"False Negative Equality Difference (FNED): {fned:.4f}")
+            print(f"Evaluation Accuracy: {acc*100:.2f}%")
+            print(f"False Positive Rate: {fpr*100:.2f}%")
+            print(f"False Negative Rate: {fnr*100:.2f}%")
 
+            out.write(f"Evaluation Accuracy: {acc*100:.2f}%\n")
+            out.write(f"False Positive Rate: {fpr*100:.2f}%\n")
+            out.write(f"False Negative Rate: {fnr*100:.2f}%\n")
+
+            accuracies[term] = acc
+            fprs[term] = fpr
+            fnrs[term] = fnr
+
+        # Weighted overall FPR/FNR
+        total_examples = sum(lens[t] for t in entity_terms)
+        overall_fpr = sum(fprs[t] * lens[t] for t in entity_terms) / total_examples
+        overall_fnr = sum(fnrs[t] * lens[t] for t in entity_terms) / total_examples
+
+        print(f"\nWeighted Overall False Positive Rate: {overall_fpr*100:.2f}%")
+        print(f"Weighted Overall False Negative Rate: {overall_fnr*100:.2f}%")
+
+        out.write(f"\nWeighted Overall False Positive Rate: {overall_fpr*100:.2f}%\n")
+        out.write(f"Weighted Overall False Negative Rate: {overall_fnr*100:.2f}%\n")
+
+        # Equality metrics
+        fped = sum(abs(overall_fpr - fprs[t]) for t in entity_terms)
+        fned = sum(abs(overall_fnr - fnrs[t]) for t in entity_terms)
+
+        print(f"\nFalse Positive Equality Difference (FPED): {fped:.4f}")
+        print(f"False Negative Equality Difference (FNED): {fned:.4f}")
+
+        out.write(f"\nFalse Positive Equality Difference (FPED): {fped:.4f}\n")
+        out.write(f"False Negative Equality Difference (FNED): {fned:.4f}\n")
+
+    print(f"\nSaved bias metrics to: {output_path}")
 
 

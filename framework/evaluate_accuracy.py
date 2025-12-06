@@ -9,6 +9,7 @@ from transformers import BertModel, AutoModel, AutoTokenizer, BertTokenizer, Ber
 import os
 import emoji
 import re
+from tqdm import tqdm
 
 # Model Helpers
 class OriginalBias(nn.Module):
@@ -68,7 +69,7 @@ def covert_examples_to_tf(examples, max_seq_length, tokenizer):
     segment_ids_list = []
     label_ids_list = []
 
-    for (ex_index, example) in enumerate(examples): 
+    for example in tqdm(examples, desc="Tokenizing Text Inputs"): 
         text, label_id = example 
 
         tokens = tokenizer.tokenize(text)
@@ -134,13 +135,13 @@ def evaluate(model, data_loader, device):
     FN = 0
 
     with torch.no_grad():
-        for input_ids, attention_mask, segment_ids, labels in data_loader:
+        for input_ids, attention_mask, segment_ids, labels in tqdm(data_loader, desc="Evaluating"):
             input_ids = input_ids.to(device)
             attention_mask = attention_mask.to(device)
             labels = labels.to(device)
 
             outputs = model(input_ids, attention_mask)
-            preds = torch.argmax(outputs, dim=1)
+            preds = 1 - torch.argmax(outputs, dim=1) # reversed outputs
 
             correct += (preds == labels).sum().item()
             total += labels.size(0)
@@ -165,13 +166,15 @@ if __name__ == "__main__":
                         help="Bert pre-trained model selected in the list: bert-base-uncased, "
                         "bert-large-uncased, bert-base-cased, bert-large-cased, bert-base-multilingual-uncased, "
                         "bert-base-multilingual-cased, bert-base-chinese.")
-    parser.add_argument("--tokenizer_name", required=True, type=str, help="Tokenizer name or path")
     parser.add_argument("--eval_file", required=True, type=str, help="CSV file with 'comment' and 'is_toxic'")
     parser.add_argument("--batch_size", default=16, type=int)
-    parser.add_argument("--max_seq_length", default=128, type=int)
+    parser.add_argument("--max_seq_length", default=128, type=int)    
+    parser.add_argument("--output_file", required = True, type=str)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    print("Starting Accuracy Evaluation")
 
     # Load Model & Tokenizer
     tokenizer = BertTokenizer.from_pretrained(args.bert_model)
@@ -182,8 +185,11 @@ if __name__ == "__main__":
     model_state_dict = torch.load(args.model_file, map_location=device)
     model.load_state_dict(model_state_dict)
 
+    print("Model Loaded")
+
     # Prepare dataset and dataloader
-    data_loader = get_dataloader(tokenizer, args.eval_file, max_seq_length = args.max_seq_length, batch_size = args.batch_size)
+    data_loader = get_dataloader(tokenizer, args.eval_file, max_seq_length = args.max_seq_length, batch_size = args.batch_size) 
+    print("Data Loaded")
 
     # Evaluate
     acc, fpr, fnr = evaluate(model, data_loader, device)
@@ -191,3 +197,13 @@ if __name__ == "__main__":
     print(f"False Positive Rate: {fpr*100:.2f}%")
     print(f"False Negative Rate: {fnr*100:.2f}%")
 
+
+    with open(args.output_file, "w") as f:
+        f.write(f"Model File: {args.model_file}\n")
+        f.write(f"Eval File: {args.eval_file}\n")
+        f.write("\n===== Evaluation Metrics =====\n")
+        f.write(f"Accuracy: {acc*100:.2f}%\n")
+        f.write(f"False Positive Rate: {fpr*100:.2f}%\n")
+        f.write(f"False Negative Rate: {fnr*100:.2f}%\n")
+
+    print(f"\nSaved evaluation metrics to: {args.output_file}")
