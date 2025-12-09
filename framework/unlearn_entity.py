@@ -255,11 +255,11 @@ def calculate_shapley_values_fa(model, data_loader, device, repeats=100):
     return shapley_values
 
 
-def unlearning(model, forget, forget_neu, device, num_weights = 150, log_file = None):
+def unlearning(model, forget, forget_neu, device, num_weights = 150, num_repetitions = 10, log_file = None):
 
     # Calculate Shapley Values
-    tox_shapley_values = calculate_shapley_values_fa(model, forget, device, 10)  
-    nontox_shapley_values = calculate_shapley_values_fa(model, forget_neu, device, 10)  
+    tox_shapley_values = calculate_shapley_values_fa(model, forget, device, num_repetitions)  
+    nontox_shapley_values = calculate_shapley_values_fa(model, forget_neu, device, num_repetitions)  
 
     # Calculate Shapley Value Differences 
     diff_shap_values_toxnontox = tox_shapley_values - nontox_shapley_values
@@ -307,6 +307,7 @@ if __name__ == "__main__":
     parser.add_argument("--forget_neu_file", required=True, type=str)
     parser.add_argument("--entity_term", required=True, type=str)
     parser.add_argument("--num_weights", required=True, type=int)
+    parser.add_argument("--num_repetitions", required=True, type=int)
 
     # Data Outputs 
     parser.add_argument("--model_output_file", required=True, type=str,
@@ -343,7 +344,7 @@ if __name__ == "__main__":
 
 
     # Do Unlearning 
-    model = unlearning(model, forget_dataloader, forget_neu_dataloader, device, args.num_weights, args.log_file)
+    model = unlearning(model, forget_dataloader, forget_neu_dataloader, device, args.num_weights, args.num_repetitions, args.log_file)
     model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model itself
     torch.save(model_to_save.state_dict(), args.model_output_file)
 
