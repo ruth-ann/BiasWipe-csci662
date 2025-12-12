@@ -1,9 +1,11 @@
 MODELS=(
-    # /home/exouser/models/pretrained/logs_bert_es_final/bert_es.bin
-    /home/exouser/models/pretrained/logs_old_bert/bert.bin
-    # /home/exouser/models/pretrained/logs_roberta_es_final/roberta_es.bin
+    # PRETRAINED MODELS 
+    # /home/exouser/models/pretrained/logs_old_bert/bert.bin
+    /home/exouser/models/pretrained/logs_bert_es_final/bert_es.bin
     # /home/exouser/models/pretrained/logs_roberta_en/roberta.bin
-    
+    # /home/exouser/models/pretrained/logs_roberta_es_final/roberta_es.bin
+
+    # /home/exouser/models/unbiased/bert_es_final_gay_100.bin
     # "/home/exouser/models/pretrained/old_bert.bin" # removed for now since only doing ablation; uncomment for specific files
     # "unbiased/old_bert_lesbian_150.bin"
     # "/home/exouser/models/pretrained/logs_bert_es_final/pytorch_model.bin"
@@ -13,22 +15,21 @@ MODELS=(
 )
 
 # ------------------- Configuration ------------------- #
-# MODEL_TYPE=roberta-base
-MODEL_TYPE=bert-base-uncased
-# roberta-base
+
+### MODEL TYPES ###
+MODEL_TYPE=dccuchile/bert-base-spanish-wwm-cased
+# MODEL_TYPE=bert-base-uncased
 # MODEL_TYPE=bertin-project/bertin-roberta-base-spanish
-# MODEL_TYPE=dccuchile/bert-base-spanish-wwm-cased
+# MODEL_TYPE=roberta-base
 
-# PRETRAINED_DIR=/home/exouser/models/pretrained
-# UNBIASED_DIR=/home/exouser/models/unbiased
-
+### EVALUATION DATASETS ### 
 # ENGLISH EVALUATION FILES
-EVAL_FILE=/home/exouser/repos/BiasWipe-csci662/framework/dev.tsv
-BIAS_EVAL_FILE=/home/exouser/data/unintended-ml-bias-analysis/english_entities.csv
+# EVAL_FILE=/home/exouser/repos/BiasWipe-csci662/framework/dev.tsv
+# BIAS_EVAL_FILE=/home/exouser/data/unintended-ml-bias-analysis/english_entities.csv
 
 # SPANISH EVALUATION FILES
-# EVAL_FILE=/home/exouser/repos/BiasWipe-csci662/framework/dev_es.tsv
-# BIAS_EVAL_FILE=/home/exouser/data/unintended-ml-bias-analysis/spanish_entities.csv
+EVAL_FILE=/home/exouser/repos/BiasWipe-csci662/framework/dev_es.tsv
+BIAS_EVAL_FILE=/home/exouser/data/unintended-ml-bias-analysis/spanish_entities.csv
 
 OUTPUT_FOLDER=/home/exouser/data/outputs/evaluations
 
