@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import argparse
 import pandas as pd
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from transformers import BertModel, AutoModel, AutoTokenizer, BertTokenizer, BertConfig
+from transformers import BertModel, AutoModel, AutoTokenizer, BertTokenizer, BertConfig, BertModel, AutoModel, AutoTokenizer, RobertaTokenizer, RobertaConfig, get_linear_schedule_with_warmup
 import os
 import emoji
 import re
@@ -61,7 +61,7 @@ def create_examples(df):
     return examples
 
 
-def covert_examples_to_tf(examples, max_seq_length, tokenizer):
+def covert_examples_to_tf(examples, max_seq_length, tokenizer, save_loc = None):
     """ Convert examples list(elements are tuples of format (text, label) ) to BERT features """
 
     input_ids_list = []
@@ -109,13 +109,20 @@ def covert_examples_to_tf(examples, max_seq_length, tokenizer):
 
     dataset = TensorDataset(input_ids_list, input_masks_list, segment_ids_list, label_ids_list)
 
+    if save_loc is not None:
+        torch.save(dataset, save_loc)
     return dataset
 
 
 def get_dataloader(tokenizer, filename, max_seq_length = 120, batch_size = 16):
-    df = load_dataframe(filename)
-    examples = create_examples(df)
-    tf_dataset = covert_examples_to_tf(examples, max_seq_length, tokenizer)
+    
+    if filename == "/home/exouser/repos/BiasWipe-csci662/framework/comments_with_labels.tsv" and os.path.exists("/home/exouser/data/wikipedia_talks_labels/cached_dataset.pt"):
+        tf_dataset = torch.load("/home/exouser/data/wikipedia_talks_labels/cached_dataset.pt", weights_only = False)
+
+    else:
+        df = load_dataframe(filename)
+        examples = create_examples(df)
+        tf_dataset = covert_examples_to_tf(examples, max_seq_length, tokenizer)
 
     sampler = SequentialSampler(tf_dataset)
     dataloader = DataLoader(tf_dataset, sampler=sampler, batch_size=batch_size)
@@ -177,14 +184,33 @@ if __name__ == "__main__":
     print("Starting Accuracy Evaluation")
 
     # Load Model & Tokenizer
-    tokenizer = BertTokenizer.from_pretrained(args.bert_model)
-    config = BertConfig(num_labels = 2, num_hidden_layers=12) # CHECK FOR ACCURACY 
+    if "roberta" in args.bert_model:
+        tokenizer = RobertaTokenizer.from_pretrained(args.bert_model, do_lower_case=False)
+        config = RobertaConfig(num_labels = 2, num_hidden_layers=12)
+        
+    elif "bert" in args.bert_model:
+        tokenizer = BertTokenizer.from_pretrained(args.bert_model)
+        config = BertConfig(num_labels = 2, num_hidden_layers=12) # CHECK FOR ACCURACY 
+
+        
+        model=OriginalBias()
+    else:
+        raise ValueError(f"Unknown model type: {args.bert_model}")
+
     model = OriginalBias()
     model.to(device)
 
     model_state_dict = torch.load(args.model_file, map_location=device)
-    model.load_state_dict(model_state_dict)
 
+    if "roberta" in args.bert_model:
+        new_state_dict = {}
+        for k, v in model_state_dict.items():
+            new_k = k.replace("roberta.", "bert.")
+            new_state_dict[new_k] = v
+
+        model_state_dict = new_state_dict
+
+    model.load_state_dict(model_state_dict)
     print("Model Loaded")
 
     # Prepare dataset and dataloader

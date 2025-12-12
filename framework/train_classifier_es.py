@@ -758,7 +758,10 @@ if __name__ == "__main__":
 		df['predicted_labels'] = [label_dict[i] for i in predicted_labels]
 		result = {'eval_loss': eval_loss,
 				  'eval_accuracy': eval_accuracy,
-				  'classification report\n': classification_report(true_labels, predicted_labels, target_names=label_names)}
+				  'classification report\n': classification_report(true_labels, predicted_labels, target_names=label_names),
+				  'lr':args.learning_rate,
+				  'epochs': args.num_train_epochs,
+				  'batch size': args.train_batch_size}
 		print(result)
 		
 

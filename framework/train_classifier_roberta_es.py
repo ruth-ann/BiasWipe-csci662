@@ -34,12 +34,9 @@ import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
+import torch.optim as optim
 
-# from pytorch_pretrained_bert.tokenization import BertTokenizer
-# from pytorch_pretrained_bert.modeling import BertForSequenceClassification
-from pytorch_pretrained_bert.optimization import BertAdam
-from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
-from transformers import BertModel, AutoModel, AutoTokenizer, BertTokenizer, BertConfig
+from transformers import BertModel, AutoModel, AutoTokenizer, RobertaTokenizer, RobertaConfig, get_linear_schedule_with_warmup
 
 from sklearn.metrics import accuracy_score,confusion_matrix,recall_score
 from sklearn.metrics import classification_report
@@ -83,10 +80,9 @@ class InputExample(object):
 class InputFeatures(object):
 	"""A single set of features of data."""
 
-	def __init__(self, input_ids, input_mask, segment_ids, label_id):
+	def __init__(self, input_ids, input_mask, label_id):
 		self.input_ids = input_ids
 		self.input_mask = input_mask
-		self.segment_ids = segment_ids
 		self.label_id = label_id
 
 
@@ -127,17 +123,17 @@ class SentiProcessor(DataProcessor):
 	def get_train_examples(self, data_dir):
 		"""See base class."""
 		return self._create_examples(
-			pd.read_csv(os.path.join(data_dir, "train.tsv"),sep='\t'), "train")
+			pd.read_csv(os.path.join(data_dir, "train_es.tsv"),sep='\t'), "train")
 
 	def get_dev_examples(self, data_dir):
 		"""See base class."""
 		return self._create_examples(
-			pd.read_csv(os.path.join(data_dir, "dev.tsv"),sep='\t'), "dev")
+			pd.read_csv(os.path.join(data_dir, "dev_es.tsv"),sep='\t'), "dev")
 
 	def get_test_examples(self, data_dir):
 		"""See base class."""
 		return self._create_examples(
-			pd.read_csv(os.path.join(data_dir, "test.tsv"),sep='\t'), "test")
+			pd.read_csv(os.path.join(data_dir, "test_es.tsv"),sep='\t'), "test")
 
 	
 	def get_labels(self):
@@ -209,11 +205,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 		# used as as the "sentence vector". Note that this only makes sense because
 		# the entire model is fine-tuned.
 		tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
-		segment_ids = [0] * len(tokens)
 
 		if tokens_b:
 			tokens += tokens_b + ["[SEP]"]
-			segment_ids += [1] * (len(tokens_b) + 1)
 
 		input_ids = tokenizer.convert_tokens_to_ids(tokens)
 
@@ -225,11 +219,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 		padding = [0] * (max_seq_length - len(input_ids))
 		input_ids += padding
 		input_mask += padding
-		segment_ids += padding
 
 		assert len(input_ids) == max_seq_length
 		assert len(input_mask) == max_seq_length
-		assert len(segment_ids) == max_seq_length
 		#print("example.label:", example.label)	
 		label_id = label_map[str(example.label).upper()]
 
@@ -240,14 +232,11 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 					[str(x) for x in tokens]))
 			logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
 			logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-			logger.info(
-					"segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
 			logger.info("label: %s (id = %d)" % (example.label, label_id))
 
 		features.append(
 				InputFeatures(input_ids=input_ids,
 							  input_mask=input_mask,
-							  segment_ids=segment_ids,
 							  label_id=label_id))
 	return features
 
@@ -286,7 +275,7 @@ def train(model, train_dataloader, args):
 	for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
 		print("DEVICE!!!", device)
 		batch = tuple(t.to(device) for t in batch)
-		input_ids, input_mask, segment_ids, label_ids = batch
+		input_ids, input_mask, label_ids = batch
 		inputs = {'input_ids': input_ids,
 				'attention_mask': input_mask,
 				'labels': label_ids}
@@ -317,6 +306,7 @@ def train(model, train_dataloader, args):
 			for param_group in optimizer.param_groups:
 				param_group['lr'] = lr_this_step
 			optimizer.step()
+			scheduler.step()
 			optimizer.zero_grad()
 			global_step += 1
 	epoch_loss = float(tr_loss/nb_tr_steps)
@@ -330,10 +320,9 @@ def evaluate(model, eval_dataloader):
 	nb_eval_steps, nb_eval_examples = 0, 0
 	true_labels = []
 	predicted_labels = []
-	for input_ids, input_mask, segment_ids, label_ids in tqdm(eval_dataloader, desc="Evaluating"):
+	for input_ids, input_mask, label_ids in tqdm(eval_dataloader, desc="Evaluating"):
 		input_ids = input_ids.to(device)
 		input_mask = input_mask.to(device)
-		segment_ids = segment_ids.to(device)
 		label_ids = label_ids.to(device)
 
 		with torch.no_grad():
@@ -346,7 +335,7 @@ def evaluate(model, eval_dataloader):
 			criterion = nn.CrossEntropyLoss() ## If required define your own criterion
 			loss=criterion(output, label_ids)
 
-			# logits = model(input_ids, segment_ids, input_mask)
+			# logits = model(input_ids, input_mask)
 			logits = output
 			tmp_eval_loss = loss
 			# eval_outputs = model(**inputs)
@@ -384,17 +373,16 @@ def testing(model, test_dataloader):
 	nb_test_steps, nb_test_examples = 0, 0
 	test_true_labels = []
 	test_predicted_labels = []
-	for input_ids, input_mask, segment_ids, label_ids in tqdm(test_dataloader, desc="Evaluating"):
+	for input_ids, input_mask, label_ids in tqdm(test_dataloader, desc="Evaluating"):
 		input_ids = input_ids.to(device)
 		input_mask = input_mask.to(device)
-		segment_ids = segment_ids.to(device)
 		label_ids = label_ids.to(device)
 
 		with torch.no_grad():
 			inputs = {'input_ids': input_ids,
 				  'attention_mask': input_mask,
 				  'labels': label_ids}
-			# tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids)
+			# tmp_eval_loss = model(input_ids, input_mask, label_ids)
 			# eval_outputs = model(**inputs)
 			outputs = model(input_ids, input_mask)
 			print(outputs)
@@ -424,26 +412,12 @@ def testing(model, test_dataloader):
 class OriginalBias(nn.Module):
 		def __init__(self):
 			super(OriginalBias, self).__init__()
-			# config = BertConfig(output_hidden_states=True)
-			# self.bert = BertForSequenceClassification.from_pretrained(args.bert_model,cache_dir=PYTORCH_PRETRAINED_BERT_CACHE / 'distributed_{}'.format(args.local_rank),num_hidden_layers=num_hidden_layers)
-			# path="../tmp/test-mlm"
-			self.bert = AutoModel.from_pretrained(args.bert_model)
+			self.roberta = AutoModel.from_pretrained(args.roberta_model)
 			
-			#self.linear1 = nn.Linear(768, 256)
 			self.linear2 = nn.Linear(768, 2) ## 3 is the number of classes in this example
 
 		def forward(self, input_ids,l):
-			print("deerehrehi")
-			sequence_output= self.bert(input_ids,attention_mask=l) #tensor=sequence_output[0]=torch.Size([16, 80, 768]), batch,len,dim
-			# sequence_output, pooled_output = self.bert(input_ids,attention_mask=l)
-	          # sequence_output, pooled_output = self.bert(
-	          #      ids, 
-	          #      attention_mask=mask)
-
-	        # sequence_output has the following shape: (batch_size, sequence_length, 768)
-			# print("s",type(sequence_output),type(sequence_output[0]),sequence_output[0].shape)
-			# aa=sequence_output[0][:,0,:].view(-1,768)
-			
+			sequence_output= self.roberta(input_ids,attention_mask=l) #tensor=sequence_output[0]=torch.Size([16, 80, 768]), batch,len,dim
 			## extract the 1st token's embeddings to get sentence rep (cls)
 			linear1_output = (sequence_output[0][:,0,:].view(-1,768)) ## extract the 1st token's embeddings
 			# linear1_output = self.linear1(sequence_output[:,0,:].view(-1,768))
@@ -467,10 +441,10 @@ if __name__ == "__main__":
 						type=str,
 						required=True,
 						help="The input data dir. Should contain the .tsv files (or other data files) for the task.")
-	parser.add_argument("--bert_model", default=None, type=str, required=True,
-						help="Bert pre-trained model selected in the list: bert-base-uncased, "
-						"bert-large-uncased, bert-base-cased, bert-large-cased, bert-base-multilingual-uncased, "
-						"bert-base-multilingual-cased, bert-base-chinese, dccuchile/bert-base-spanish-wwm-cased.")
+	parser.add_argument("--roberta_model", default=None, type=str, required=True,
+						help="Roberta pre-trained model selected in the list: roberta-base, "
+						"bertin-project/bertin-roberta-base-spanish.")
+
 	parser.add_argument("--task_name",
 						default=None,
 						type=str,
@@ -598,9 +572,7 @@ if __name__ == "__main__":
 	processor = processors[task_name]()
 	num_labels = num_labels_task[task_name]
 	label_list = processor.get_labels()
-	print("LABELS: ", label_list)
-
-	tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
+	tokenizer = RobertaTokenizer.from_pretrained(args.roberta_model, do_lower_case=args.do_lower_case)
 
 	train_examples = None
 	num_train_steps = None
@@ -608,16 +580,11 @@ if __name__ == "__main__":
 		train_examples = processor.get_train_examples(args.data_dir)
 		num_train_steps = int(
 			len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
-		print("RHA: num examples:", len(train_examples))
+		# print("RUTH: num examples:", len(train_examples))
 	# Prepare model
 	num_hidden_layers = args.N
-	config = BertConfig(num_labels = num_labels, num_hidden_layers=num_hidden_layers)
-	# print(config)
-	# # model = BertForSequenceClassification(config)
-	# model = BertForSequenceClassification.from_pretrained(args.bert_model,
-	# 		  cache_dir=PYTORCH_PRETRAINED_BERT_CACHE / 'distributed_{}'.format(args.local_rank),
-	# 		  num_labels = num_labels, num_hidden_layers=num_hidden_layers)
-
+	#RHA
+	config = RobertaConfig(num_labels = num_labels, num_hidden_layers=num_hidden_layers)
 	model=OriginalBias()
 	if args.fp16:
 		model.half()
@@ -658,16 +625,17 @@ if __name__ == "__main__":
 		else:
 			optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
 
-	else:
-		optimizer = BertAdam(optimizer_grouped_parameters,
-							 lr=args.learning_rate,
-							 warmup=args.warmup_proportion,
-							 t_total=t_total)
-		# optimizer = BertAdam(optimizer_grouped_parameters,
-		# 					 lr=args.learning_rate,
-		# 					 warmup=args.warmup_proportion,
-		# 					 t_total=1000)
+	else:#RHA
+		optimizer = optim.AdamW(
+			optimizer_grouped_parameters,
+			lr=args.learning_rate
+		)
 
+		scheduler = get_linear_schedule_with_warmup(
+			optimizer,
+			num_warmup_steps=int(args.warmup_proportion * t_total),
+			num_training_steps=t_total
+		)
 	global_step = 0
 	nb_tr_steps = 0
 	tr_loss = 0
@@ -681,9 +649,8 @@ if __name__ == "__main__":
 		logger.info("  Num steps = %d", num_train_steps)
 		all_input_ids = torch.tensor([f.input_ids for f in train_features], dtype=torch.long)
 		all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long)
-		all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
 		all_label_ids = torch.tensor([f.label_id for f in train_features], dtype=torch.long)
-		train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+		train_data = TensorDataset(all_input_ids, all_input_mask, all_label_ids)
 		if args.local_rank == -1:
 			train_sampler = RandomSampler(train_data)
 		else:
@@ -699,9 +666,8 @@ if __name__ == "__main__":
 		logger.info("  Batch size = %d", args.eval_batch_size)
 		all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
 		all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
-		all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
 		all_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.long)
-		eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+		eval_data = TensorDataset(all_input_ids, all_input_mask, all_label_ids)
 
 		# Run prediction for full data
 		eval_sampler = SequentialSampler(eval_data)
@@ -716,7 +682,8 @@ if __name__ == "__main__":
 			model, train_loss = train(model, train_dataloader, args)
 			eval_loss, eval_accuracy, _, _ = evaluate(model, eval_dataloader)
 			print(f'|Training loss: {train_loss} |Evaluation loss: {eval_loss} Evaluation Accuracy {eval_accuracy}|')
-			if eval_accuracy > eval_accuracy_:
+
+			if eval_accuracy > eval_accuracy_: #RHA REMOVE EQUAL
 				eval_accuracy_ = eval_accuracy
 				# model.save_pretrained(args.output_dir)
 				# tokenizer.save_pretrained(args.output_dir)
@@ -730,21 +697,17 @@ if __name__ == "__main__":
 		logger.info("  Batch size = %d", args.eval_batch_size)
 		all_test_input_ids = torch.tensor([f.input_ids for f in test_features], dtype=torch.long)
 		all_test_input_mask = torch.tensor([f.input_mask for f in test_features], dtype=torch.long)
-		all_test_segment_ids = torch.tensor([f.segment_ids for f in test_features], dtype=torch.long)
 		all_test_label_ids = torch.tensor([f.label_id for f in test_features], dtype=torch.long)
-		test_data = TensorDataset(all_test_input_ids, all_test_input_mask, all_test_segment_ids, all_test_label_ids)
+		test_data = TensorDataset(all_test_input_ids, all_test_input_mask, all_test_label_ids)
 
 		test_sampler = SequentialSampler(test_data)
 		test_dataloader = DataLoader(test_data, sampler=test_sampler, batch_size=args.eval_batch_size)
 
 		# Load a trained model that you have fine-tuned
 		model_state_dict = torch.load(output_model_file)
-		model.load_state_dict(model_state_dict)#AutoModel.from_pretrained(args.bert_model, state_dict=model_state_dict, num_labels=num_labels)
+		model.load_state_dict(model_state_dict)
 		model.to(device)
 
-		# model=BertForSequenceClassification.from_pretrained(args.output_dir)
-		# tokenizer=AutoTokenizer.from_pretrained(args.output_dir)
-		# model.to(device)
 
 
 		label_names = ["TRUE", "FALSE"]
@@ -758,7 +721,10 @@ if __name__ == "__main__":
 		df['predicted_labels'] = [label_dict[i] for i in predicted_labels]
 		result = {'eval_loss': eval_loss,
 				  'eval_accuracy': eval_accuracy,
-				  'classification report\n': classification_report(true_labels, predicted_labels, target_names=label_names)}
+				  'classification report\n': classification_report(true_labels, predicted_labels, target_names=label_names),
+				  'lr':args.learning_rate,
+				  'epochs': args.num_train_epochs,
+				  'batch size': args.train_batch_size}
 		print(result)
 		
 

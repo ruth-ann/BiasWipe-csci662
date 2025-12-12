@@ -1,10 +1,10 @@
-python3 train_classifier.py \
+python3 train_classifier_roberta.py \
 --num_train_epochs 3 \
 --learning_rate 3e-5 \
 --eval_batch_size 8 \
---bert_model 'bert-base-multilingual-cased' \
+--roberta_model 'roberta-base' \
 --data_dir '' \
---output_dir 'logs_old_bert_en_multi/' \
+--output_dir 'logs_roberta_en/' \
 --task_name 'senti' \
 --N 12 \
 --train_batch_size 16 \
