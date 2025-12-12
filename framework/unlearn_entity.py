@@ -27,7 +27,7 @@ from torch.utils.data.distributed import DistributedSampler
 # from pytorch_pretrained_bert.modeling import BertForSequenceClassification
 from pytorch_pretrained_bert.optimization import BertAdam
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
-from transformers import BertModel, AutoModel, AutoTokenizer, BertTokenizer, BertConfig
+from transformers import BertModel, AutoModel, AutoTokenizer, BertTokenizer, BertConfig, BertModel, AutoModel, AutoTokenizer, RobertaTokenizer, RobertaConfig, get_linear_schedule_with_warmup
 from transformers import RobertaForSequenceClassification
 
 from sklearn.metrics import accuracy_score,confusion_matrix,recall_score
@@ -40,8 +40,6 @@ logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(messa
                     datefmt = '%m/%d/%Y %H:%M:%S',
                     level = logging.INFO)
 logger = logging.getLogger(__name__)
-
-
 
 # Model Helper Functions
 class OriginalBias(nn.Module):
@@ -327,13 +325,35 @@ if __name__ == "__main__":
     n_gpu = torch.cuda.device_count()
 
     # Load Model
-    tokenizer = BertTokenizer.from_pretrained(args.bert_model)
-    config = BertConfig(num_labels = 2, num_hidden_layers=12) # CHECK FOR ACCURACY 
+        # Load Model & Tokenizer
+    if "roberta" in args.bert_model:
+        tokenizer = RobertaTokenizer.from_pretrained(args.bert_model, do_lower_case=False)
+        config = RobertaConfig(num_labels = 2, num_hidden_layers=12)
+        
+    elif "bert" in args.bert_model:
+        tokenizer = BertTokenizer.from_pretrained(args.bert_model)
+        config = BertConfig(num_labels = 2, num_hidden_layers=12) # CHECK FOR ACCURACY 
+
+        
+        model=OriginalBias()
+    else:
+        raise ValueError(f"Unknown model type: {args.bert_model}")
+
     model = OriginalBias()
     model.to(device)
 
     model_state_dict = torch.load(args.fine_tuned_model_file, map_location=device)
+
+    if "roberta" in args.bert_model:
+        new_state_dict = {}
+        for k, v in model_state_dict.items():
+            new_k = k.replace("roberta.", "bert.")
+            new_state_dict[new_k] = v
+
+        model_state_dict = new_state_dict
+
     model.load_state_dict(model_state_dict)
+    print("Model Loaded")
 
     # Prepare Datasets
     forget_dataloader = get_dataloader(tokenizer, args.forget_file, args.entity_term)

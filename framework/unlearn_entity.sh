@@ -5,7 +5,8 @@ TRAIN_FILE=unintended-ml-bias-analysis/english_entities.csv
 
 ENTITY_TERMS=("gay" "homosexual" "lesbian")
 
-PREV_MODEL_FILE="/home/exouser/models/pretrained/logs_$MODEL_NAME/pytorch_model.bin"
+PREV_MODEL_FILE=/home/exouser/models/pretrained/logs_roberta_en/roberta.bin
+# PREV_MODEL_FILE="/home/exouser/models/pretrained/logs_$MODEL_NAME/pytorch_model.bin"
 UNLEARNED_TERMS=""  # will hold all terms concatenated
 
 for ENTITY_TERM in "${ENTITY_TERMS[@]}"
