@@ -5,6 +5,8 @@ This repository contains the code for reproducing the EMNLP 2024 paper:
 
 📄 [Original Paper Link](https://aclanthology.org/2024.emnlp-main.1172/)  
 **Authors:** Mamta, Rishikant Chigrupaatii, Asif Ekbal
+
+
 **Reproduced By:** Ruth-Ann Armstrong, Faith Baca, Lydia Ignatova
 
 # Environment
@@ -163,7 +165,14 @@ It can be run with the `scripts/eval_bias.sh` bash script, which makes it easy t
 
 
 # Pretrained Models
-The pretrained models yeah... 
+A couple of fine-tuned and un-biased models are available in this [OneDrive folder](https://uscedu-my.sharepoint.com/:f:/r/personal/lignatov_usc_edu/Documents/BiasWipe%20Reproduction%20Model%20Weights?csf=1&web=1&e=9HIcQ9). 
+
+The included model files are:
+
+* `bert.bin`: bert-base-uncased fine-tuned for toxic content classification on the Wikipedia Talk Pages Toxicity dataset
+* `bert_gay_100.bin`: `bert.bin` after unlearning "gay", pruning 100 weights
+* `bert_gay_homosexual_100.bin`: `bert_gay_100.bin` after unlearning "homosexual", pruning 100 weights
+* `bert_gay_homosexual_lesbian_100.bin`: `bert_gay_homosexual_100.bin` after unlearning "lesbian", pruning 100 weights. 
 
 
 # Reproduction Results
