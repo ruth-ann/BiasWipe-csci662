@@ -65,6 +65,8 @@ if __name__ == "__main__":
             )
 
             lens[term] = len(data_loader.dataset)
+            if lens[term] <= 0:
+                continue
             print(f"Evaluating on {lens[term]} examples.")
             out.write(f"Evaluating on {lens[term]} examples.\n")
 

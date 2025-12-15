@@ -601,7 +601,7 @@ if __name__ == "__main__":
 	print("LABELS: ", label_list)
 
 	if "roberta" in args.bert_model:
-		RobertaTokenizer.from_pretrained(args.roberta_model, do_lower_case=args.do_lower_case)
+		tokenizer = RobertaTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
 	elif "bert" in args.bert_model:
 		tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
 	else:
