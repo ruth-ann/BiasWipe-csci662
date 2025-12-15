@@ -76,7 +76,8 @@ In order to use the sentence templates to assess toxicity, we preprocess them wi
 ```bash
 python data/preprocess_templates.py \
   --input_path path/to/template.csv \
-  --output_path path/to/processed.csv
+  --output_path path/to/processed.csv \
+  --identity_terms_path ./data/identity_terms_en.txt
 ```
 
 This preprocessing normalizes the text, ensures consistent formatting for column names, and extracts identity terms so the dataset can be used for bias evaluation later on.

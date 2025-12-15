@@ -1,6 +1,7 @@
 import pandas as pd
 import re
 import unicodedata
+import argparse
 
 def remove_accents(text):
     """Removes accents from a string for normalization"""
@@ -40,9 +41,9 @@ def extract_identity_from_corrected(phrase, identity_terms_sorted):
             return identity
     return ""
 
-def main(input_csv, identity_terms_path, output_csv):
-
+def main(input_csv, output_csv, identity_terms_path):
     df = pd.read_csv(input_csv)
+    print("Input Dataframe Loaded")
 
     with open(identity_terms_path, "r", encoding="utf-8") as f:
         identity_terms = [line.strip() for line in f if line.strip()]
@@ -55,9 +56,11 @@ def main(input_csv, identity_terms_path, output_csv):
 
     # Extract keywords from corrected phrases
     df["keyword"] = df["comment"].apply(lambda x: extract_identity_from_corrected(x, identity_terms_sorted))
+    print("Keywords Extracted")
 
     # Convert toxicity to binary
     df["is_toxic"] = df["toxicity"].apply(lambda x: 1 if x == "toxic" else 0)
+    print("Toxicity Converted to Binary")
 
     # Select and order columns
     df_out = df[["comment", "keyword", "is_toxic"]]
@@ -66,3 +69,13 @@ def main(input_csv, identity_terms_path, output_csv):
     df_out.to_csv(output_csv, index=False)
 
     print(f"Processed {len(df_out)} rows. Saved to {output_csv}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Preprocess Spanish sentence templates")
+    parser.add_argument("--input_path", required=True, help="Path to input CSV file")
+    parser.add_argument("--output_path", required=True, help="Path to output CSV file")
+    parser.add_argument("--identity_terms_path", required=True, help="Path to identity terms TXT file")
+
+    args = parser.parse_args()
+    main(args.input_path, args.output_path, args.identity_terms_path)
