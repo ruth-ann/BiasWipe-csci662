@@ -37,7 +37,7 @@ To evaluate unintended bias in classification performance, we follow the origina
 The Wikipedia Talk Pages dataset has separate files corresponding to the comments and their corresponding toxicity annotations. In order to combine them into a usable dataset, run the following python script:
 
 ```bash
-python preprocess_wikitalks.py \
+python data/preprocess_wikitalks.py \
   --comments_file /path/to/toxicity_annotated_comments.tsv \
   --annotations_file /path/to/toxicity_annotations.tsv \
   --output_dir /path/to/output_folder

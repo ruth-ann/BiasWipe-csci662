@@ -56,7 +56,7 @@ def load_dataframe(filename):
     else:
         raise ValueError("Unsupported file type")
 
-def twitter_tokenizer(self, line):
+def twitter_tokenizer(line):
     line = str(line)
     line = line.lower()
     line = emoji.demojize(line)

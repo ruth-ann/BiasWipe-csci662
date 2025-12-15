@@ -69,7 +69,7 @@ def load_dataframe(filename):
         raise ValueError(f"Unsupported file type: {ext}. Use .csv or .tsv.")
 
 
-def twitter_tokenizer(self, line):
+def twitter_tokenizer(line):
     line = str(line)
     line = line.lower()
     line = emoji.demojize(line)

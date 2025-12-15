@@ -285,7 +285,6 @@ def train(model, train_dataloader, args):
 	tr_loss = 0
 	nb_tr_examples, nb_tr_steps = 0, 0
 	for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
-		print("DEVICE!!!", device)
 		batch = tuple(t.to(device) for t in batch)
 		input_ids, input_mask, segment_ids, label_ids = batch
 		inputs = {'input_ids': input_ids,
