@@ -30,7 +30,7 @@ do
     LOG_FILE="{$LOG_SAVE_DIR}/${MODEL_NAME}_${UNLEARNED_TERMS}_${NUM_WEIGHTS}_shapley.txt"
 
     # Run unlearning for this entity
-    python unlearn_entity.py \
+    python models/unlearn_entity.py \
       --bert_model $MODEL_TYPE \
       --fine_tuned_model_file "$PREV_MODEL_FILE" \
       --forget_file "$FORGET_FILE" \

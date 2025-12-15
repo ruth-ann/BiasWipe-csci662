@@ -21,7 +21,7 @@ echo "Evaluating bias for model: $MODEL_PATH"
 echo "Evaluation file: $EVAL_FILE"
 echo "Entity terms file: $ENTITY_TERMS_FILE"
 
-python eval_bias.py \
+python evals/eval_bias.py \
     --model_file "$MODEL_PATH" \
     --bert_model "$MODEL_TYPE" \
     --eval_file "$EVAL_FILE" \

@@ -16,7 +16,7 @@ EVAL_BATCH_SIZE=8
 MAX_SEQ_LENGTH=120
 N=12
 
-python train_classifier.py \
+python models/train_classifier.py \
     --train_tsv $TRAIN_TSV \
     --dev_tsv $DEV_TSV \
     --test_tsv $TEST_TSV \

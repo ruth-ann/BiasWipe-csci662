@@ -17,7 +17,7 @@ PREV_MODEL_FILE=/path/to/model.bin
 MODEL_OUTPUT_FILE="/path/to/unbiased_model.bin"  
 LOG_FILE="/path/to/unlearning_log.txt"           
 
-python unlearn_entity.py \
+python models/unlearn_entity.py \
     --bert_model $BERT_MODEL \
     --fine_tuned_model_file "$PREV_MODEL_FILE" \
     --forget_file $FORGET_FILE \

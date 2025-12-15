@@ -19,7 +19,7 @@ MAX_SEQ_LENGTH=128
 echo "Evaluating bias for model: $MODEL_PATH"
 echo "Evaluation file: $EVAL_FILE"
 
-python evaluate_accuracy.py \
+python evals/evaluate_accuracy.py \
     --model_file "$MODEL_PATH" \
     --bert_model "$MODEL_TYPE" \
     --eval_file "$EVAL_FILE" \

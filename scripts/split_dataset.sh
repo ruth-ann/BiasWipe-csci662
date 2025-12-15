@@ -11,7 +11,7 @@ TRAIN_OUT="$OUTPUT_DIR/${DATASET_NAME}_train.tsv"
 DEV_OUT="$OUTPUT_DIR/${DATASET_NAME}_dev.tsv"
 TEST_OUT="$OUTPUT_DIR/${DATASET_NAME}_test.tsv"
 
-python split_dataset.py \
+python data/split_dataset.py \
   --input "$INPUT_FILE" \
   --train_out "$TRAIN_OUT" \
   --dev_out "$DEV_OUT" \

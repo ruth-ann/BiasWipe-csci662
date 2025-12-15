@@ -131,7 +131,7 @@ for ENTITY_TERM in "${ENTITY_TERMS[@]}"; do
     echo ""
 
     # Run unlearning for this entity
-    python unlearn_entity.py \
+    python models/unlearn_entity.py \
         --bert_model "$BERT_MODEL" \
         --fine_tuned_model_file "$PREV_MODEL_FILE" \
         --forget_file "${DATA_DIR}/$TRAIN_FILE" \
