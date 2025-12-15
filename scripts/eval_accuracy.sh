@@ -1,5 +1,6 @@
 # Model checkpoint to evaluate
 MODEL_PATH=/path/to/model_name.bin # UPDATE ACCORDINGLY
+MODEL_NAME=name_of_model 
 
 # Pre-trained model type
 MODEL_TYPE=roberta-base # UPDATE ACCORDINGLY
@@ -9,7 +10,7 @@ EVAL_FILE=/path/to/sentence_templates.csv # UPDATE ACCORDINGLY
 
 # Output file
 EVAL_DIR=/path/to/dir
-OUTPUT_FILE=$EVAL_DIR/${MODEL_NAME}_accuracy_eval.txt # UPDATE ACCORDINGLY
+OUTPUT_FILE=$EVAL_DIR/model_accuracy_eval.txt # UPDATE ACCORDINGLY
 
 # Evaluation parameters
 BATCH_SIZE=32
@@ -19,7 +20,7 @@ MAX_SEQ_LENGTH=128
 echo "Evaluating bias for model: $MODEL_PATH"
 echo "Evaluation file: $EVAL_FILE"
 
-python evals/evaluate_accuracy.py \
+python evals/eval_accuracy.py \
     --model_file "$MODEL_PATH" \
     --bert_model "$MODEL_TYPE" \
     --eval_file "$EVAL_FILE" \

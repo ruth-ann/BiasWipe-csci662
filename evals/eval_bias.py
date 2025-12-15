@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
             # Prepare dataset + dataloader
             data_loader = get_dataloader(
-                tokenizer, args.eval_file, term,
+                tokenizer, args.eval_file, entity_term=term,
                 max_seq_length=args.max_seq_length,
                 batch_size=args.batch_size
             )
@@ -69,7 +69,7 @@ if __name__ == "__main__":
             out.write(f"Evaluating on {lens[term]} examples.\n")
 
             # Evaluate
-            acc, fpr, fnr = evaluate(model, data_loader, device, term)
+            acc, fpr, fnr = evaluate(model, data_loader, device)
 
             # Update running totals
             total_correct += acc * lens[term]

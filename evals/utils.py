@@ -36,7 +36,7 @@ def load_model(model_name, model_file, device):
 
     # Load Model Weights 
     model_state_dict = torch.load(model_file, map_location=device)
-    if "roberta" in model:
+    if "roberta" in model_name:
         new_state_dict = {}
         for k, v in model_state_dict.items():
             new_k = k.replace("roberta.", "bert.")
@@ -127,13 +127,16 @@ def covert_examples_to_tf(examples, max_seq_length, tokenizer, save_loc = None):
         torch.save(dataset, save_loc)
     return dataset
 
-def get_dataloader(tokenizer, filename, max_seq_length = 120, batch_size = 16, load_dataset = False):
+def get_dataloader(tokenizer, filename, entity_term = None, max_seq_length = 120, batch_size = 16, load_dataset = False):
     
     if load_dataset:
         tf_dataset = torch.load(filename, weights_only = False)
     else:
         df = load_dataframe(filename)
-        examples = create_examples(df)
+        if entity_term is not None:
+            examples = create_examples(df, entity_term)
+        else:
+            examples = create_examples(df)
         tf_dataset = covert_examples_to_tf(examples, max_seq_length, tokenizer)
 
     sampler = SequentialSampler(tf_dataset)
