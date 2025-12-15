@@ -178,3 +178,34 @@ The included model files are:
 
 # Reproduction Results
 
+We ran many configurations to generate the results presented below. Please see our project report (also availalbe in the [OneDrive folder](https://uscedu-my.sharepoint.com/:f:/r/personal/lignatov_usc_edu/Documents/BiasWipe%20Reproduction%20Model%20Weights?csf=1&web=1&e=9HIcQ9)) for interpretation and discussion of our findings. 
+
+
+| Model    | Variant      | Type       | Accuracy (EN) | Accuracy (ES) | FPED (EN) | FPED (ES) | FNED (EN) | FNED (ES) |
+|----------|-------------|------------|---------------|---------------|-----------|-----------|-----------|-----------|
+| **BERT** | BERT        | WTP Eval   | 96.67         | 81.31         | -         | -         | -         | -         |
+|          |             | WTP Test   | **96.78**     | 81.52         | -         | -         | -         | -         |
+|          |             | Template   | 89.24         | **85.62**     | 10.34     | 20.78     | 6.53      | **4.07**  |
+|          | Unlearn 1   | WTP Eval   | 96.31         | 67.71         | -         | -         | -         | -         |
+|          |             | WTP Test   | 96.33         | 67.92         | -         | -         | -         | -         |
+|          |             | Template   | 86.34         | 75.62         | 14.66     | 3.02      | **5.32**  | 21.37     |
+|          | Unlearn 2   | WTP Eval   | 95.97         | 66.22         | -         | -         | -         | -         |
+|          |             | WTP Test   | 95.93         | 67.35         | -         | -         | -         | -         |
+|          |             | Template   | 82.49         | 72.52         | 12.89     | 2.01      | 11.40     | 19.46     |
+|          | Unlearn 3   | WTP Eval   | 95.73         | 66.79         | -         | -         | -         | -         |
+|          |             | WTP Test   | 95.79         | 69.05         | -         | -         | -         | -         |
+|          |             | Template   | 79.39         | 72.08         | **11.86** | **0.87**  | 14.30     | 22.30     |
+| **RoBERTa** | RoBERTa  | WTP Eval   | 96.34         | 78.95         | -         | -         | -         | -         |
+|          |             | WTP Test   | **96.64**     | **79.41**     | -         | -         | -         | -         |
+|          |             | Template   | 85.59         | 76.71         | 15.77     | 24.93     | 6.90      | 14.09     |
+|          | Unlearn 1   | WTP Eval   | 96.29         | 63.04         | -         | -         | -         | -         |
+|          |             | WTP Test   | 96.50         | 63.35         | -         | -         | -         | -         |
+|          |             | Template   | 87.21         | 50.90         | 15.54     | 11.45     | **6.31**  | 5.70      |
+|          | Unlearn 2   | WTP Eval   | 96.18         | 63.71         | -         | -         | -         | -         |
+|          |             | WTP Test   | 96.32         | 63.19         | -         | -         | -         | -         |
+|          |             | Template   | 88.95         | 50.10         | 6.22      | **0.83**  | 8.02      | **0.69**  |
+|          | Unlearn 3   | WTP Eval   | 95.27         | 62.78         | -         | -         | -         | -         |
+|          |             | WTP Test   | 95.45         | 62.83         | -         | -         | -         | -         |
+|          |             | Template   | 71.95         | 50.06         | **4.64**  | 3.09      | 9.76      | 1.62      |
+
+
