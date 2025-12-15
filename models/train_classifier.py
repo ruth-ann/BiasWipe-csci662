@@ -53,8 +53,6 @@ import numpy as np
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 device = torch.device("cuda")
 
-print("Hey There!")
-
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
 					datefmt = '%m/%d/%Y %H:%M:%S',
 					level = logging.INFO)
@@ -231,7 +229,6 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 		assert len(input_ids) == max_seq_length
 		assert len(input_mask) == max_seq_length
 		assert len(segment_ids) == max_seq_length
-		#print("example.label:", example.label)	
 		label_id = label_map[str(example.label).upper()]
 
 		if ex_index < 5:
@@ -614,7 +611,6 @@ if __name__ == "__main__":
 		train_examples = processor.get_train_examples(args.train_tsv)
 		num_train_steps = int(
 			len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
-		print("RHA: num examples:", len(train_examples))
 	# Prepare model
 	num_hidden_layers = args.N
 	
